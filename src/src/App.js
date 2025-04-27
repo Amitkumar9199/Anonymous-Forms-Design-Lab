@@ -6,6 +6,7 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
 import SubmitForm from './components/SubmitForm';
 import AdminDashboard from './components/AdminDashboard';
+import ResponsesPage from './components/ResponsesPage';
 
 const theme = createTheme({
   palette: {
@@ -53,6 +54,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <SubmitForm />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/responses" 
+              element={
+                <PrivateRoute>
+                  <ResponsesPage />
                 </PrivateRoute>
               } 
             />

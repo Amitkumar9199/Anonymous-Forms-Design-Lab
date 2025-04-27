@@ -33,6 +33,10 @@ const SubmitForm = () => {
     navigate('/');
   };
 
+  const viewResponses = () => {
+    navigate('/responses');
+  };
+
   // Check if the user has already submitted a form
   useEffect(() => {
     const checkSubmissionStatus = async () => {
@@ -100,8 +104,15 @@ const SubmitForm = () => {
       <AppBar position="static">
         <Toolbar>
           <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Anonymous Forms
+            Anonymous Portal
           </Typography>
+          <Button 
+            color="inherit" 
+            onClick={viewResponses}
+            sx={{ mr: 2 }}
+          >
+            View Responses
+          </Button>
           <Button 
             color="inherit" 
             onClick={handleLogout}
@@ -117,12 +128,6 @@ const SubmitForm = () => {
               Submit Anonymous Response
             </Typography>
             
-            {hasSubmitted && (
-              <Alert severity="info" sx={{ mb: 2 }}>
-                You have already submitted a form. Only one submission is allowed per user.
-              </Alert>
-            )}
-            
             {error && (
               <Alert severity="error" sx={{ mb: 2 }}>
                 {error}
@@ -132,6 +137,12 @@ const SubmitForm = () => {
             {success && (
               <Alert severity="success" sx={{ mb: 2 }}>
                 Form submitted successfully!
+              </Alert>
+            )}
+
+            {hasSubmitted && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                You have already submitted a form. Only one submission is allowed per user.
               </Alert>
             )}
             
@@ -161,6 +172,7 @@ const SubmitForm = () => {
           </Paper>
         </Box>
 
+        {/* Private Key Dialog */}
         <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
           <DialogTitle>Save Your Private Key</DialogTitle>
           <DialogContent>
