@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -17,7 +18,9 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  Alert
+  Alert,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import axios from 'axios';
 
@@ -28,7 +31,13 @@ const AdminDashboard = () => {
   const [privateKey, setPrivateKey] = useState('');
   const [verificationResult, setVerificationResult] = useState(null);
   const [showDialog, setShowDialog] = useState(false);
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   useEffect(() => {
     fetchResponses();
@@ -121,118 +130,133 @@ const AdminDashboard = () => {
   };
 
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ mt: 4, mb: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom>
-          Admin Dashboard
-        </Typography>
-
-        <Paper sx={{ p: 2, mb: 4 }}>
-          <Typography variant="h6" gutterBottom>
-            Registered Users
+    <>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Admin Dashboard
           </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Admin Status</TableCell>
-                  <TableCell>Has Submitted</TableCell>
-                  <TableCell>Submissions</TableCell>
-                  <TableCell>Last Submission</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {submitters.map((submitter) => (
-                  <TableRow key={submitter._id}>
-                    <TableCell>{submitter.email}</TableCell>
-                    <TableCell>{submitter.isAdmin ? 'Yes' : 'No'}</TableCell>
-                    <TableCell>{submitter.hasSubmitted ? 'Yes' : 'No'}</TableCell>
-                    <TableCell>{submitter.submissionCount || 0}</TableCell>
-                    <TableCell>{submitter.lastSubmissionAt ? new Date(submitter.lastSubmissionAt).toLocaleString() : 'Never'}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
-
-        <Paper sx={{ p: 2 }}>
-          <Typography variant="h6" gutterBottom>
-            Responses
+          <Button 
+            color="inherit" 
+            onClick={handleLogout}
+          >
+            Logout
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="lg">
+        <Box sx={{ mt: 4, mb: 4 }}>
+          <Typography variant="h4" component="h1" gutterBottom>
+            Admin Dashboard
           </Typography>
-          <TableContainer>
-            <Table>
-              <TableHead>
-                <TableRow>
-                  <TableCell>Content</TableCell>
-                  <TableCell>Public Key</TableCell>
-                  <TableCell>Signature</TableCell>
-                  <TableCell>Verified</TableCell>
-                  <TableCell>Actions</TableCell>
-                </TableRow>
-              </TableHead>
-              <TableBody>
-                {responses.map((response) => (
-                  <TableRow key={response._id}>
-                    <TableCell>{response.content}</TableCell>
-                    <TableCell>{response.publicKey ? response.publicKey.substring(0, 50) + '...' : 'N/A'}</TableCell>
-                    <TableCell>{response.signature ? response.signature.substring(0, 50) + '...' : 'N/A'}</TableCell>
-                    <TableCell>{response.verified ? 'Yes' : 'No'}</TableCell>
-                    <TableCell>
-                      <Button
-                        variant="contained"
-                        color="primary"
-                        onClick={() => {
-                          setSelectedResponse(response);
-                          setShowDialog(true);
-                          setVerificationResult(null);
-                        }}
-                        disabled={response.verified}
-                      >
-                        {response.verified ? 'Verified' : 'Verify'}
-                      </Button>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </Paper>
-      </Box>
 
-      <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
-        <DialogTitle>Verify Response</DialogTitle>
-        <DialogContent>
-          {verificationResult && (
-            <Alert severity={verificationResult.verified ? 'success' : 'error'} sx={{ mb: 2 }}>
-              {verificationResult.message}
-            </Alert>
-          )}
-          <TextField
-            fullWidth
-            label="Private Key"
-            value={privateKey}
-            onChange={(e) => setPrivateKey(e.target.value)}
-            margin="normal"
-            multiline
-            rows={4}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => {
-            setShowDialog(false);
-            setPrivateKey('');
-            setVerificationResult(null);
-          }}>
-            Cancel
-          </Button>
-          <Button onClick={handleVerify} color="primary">
-            Verify
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          <Paper sx={{ p: 2, mb: 4 }}>
+            <Typography variant="h6" gutterBottom>
+              Registered Users
+            </Typography>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Email</TableCell>
+                    <TableCell>Admin Status</TableCell>
+                    <TableCell>Has Submitted</TableCell>
+                    <TableCell>Submissions</TableCell>
+                    <TableCell>Last Submission</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {submitters.map((submitter) => (
+                    <TableRow key={submitter._id}>
+                      <TableCell>{submitter.email}</TableCell>
+                      <TableCell>{submitter.isAdmin ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>{submitter.hasSubmitted ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>{submitter.submissionCount || 0}</TableCell>
+                      <TableCell>{submitter.lastSubmissionAt ? new Date(submitter.lastSubmissionAt).toLocaleString() : 'Never'}</TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="h6" gutterBottom>
+              Responses
+            </Typography>
+            <TableContainer>
+              <Table>
+                <TableHead>
+                  <TableRow>
+                    <TableCell>Content</TableCell>
+                    <TableCell>Public Key</TableCell>
+                    <TableCell>Signature</TableCell>
+                    <TableCell>Verified</TableCell>
+                    <TableCell>Actions</TableCell>
+                  </TableRow>
+                </TableHead>
+                <TableBody>
+                  {responses.map((response) => (
+                    <TableRow key={response._id}>
+                      <TableCell>{response.content}</TableCell>
+                      <TableCell>{response.publicKey ? response.publicKey.substring(0, 50) + '...' : 'N/A'}</TableCell>
+                      <TableCell>{response.signature ? response.signature.substring(0, 50) + '...' : 'N/A'}</TableCell>
+                      <TableCell>{response.verified ? 'Yes' : 'No'}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={() => {
+                            setSelectedResponse(response);
+                            setShowDialog(true);
+                            setVerificationResult(null);
+                          }}
+                          disabled={response.verified}
+                        >
+                          {response.verified ? 'Verified' : 'Verify'}
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TableContainer>
+          </Paper>
+        </Box>
+
+        <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
+          <DialogTitle>Verify Response</DialogTitle>
+          <DialogContent>
+            {verificationResult && (
+              <Alert severity={verificationResult.verified ? 'success' : 'error'} sx={{ mb: 2 }}>
+                {verificationResult.message}
+              </Alert>
+            )}
+            <TextField
+              fullWidth
+              label="Private Key"
+              value={privateKey}
+              onChange={(e) => setPrivateKey(e.target.value)}
+              margin="normal"
+              multiline
+              rows={4}
+            />
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => {
+              setShowDialog(false);
+              setPrivateKey('');
+              setVerificationResult(null);
+            }}>
+              Cancel
+            </Button>
+            <Button onClick={handleVerify} color="primary">
+              Verify
+            </Button>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </>
   );
 };
 

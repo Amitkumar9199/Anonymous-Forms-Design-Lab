@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Paper,
@@ -11,7 +12,9 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  AppBar,
+  Toolbar
 } from '@mui/material';
 import axios from 'axios';
 
@@ -22,7 +25,13 @@ const SubmitForm = () => {
   const [privateKey, setPrivateKey] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
-  const { token } = useAuth();
+  const { token, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/');
+  };
 
   // Check if the user has already submitted a form
   useEffect(() => {
@@ -87,79 +96,94 @@ const SubmitForm = () => {
   };
 
   return (
-    <Container maxWidth="md">
-      <Box sx={{ mt: 4 }}>
-        <Paper elevation={3} sx={{ p: 4 }}>
-          <Typography variant="h4" component="h1" gutterBottom align="center">
-            Submit Anonymous Response
+    <>
+      <AppBar position="static">
+        <Toolbar>
+          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
+            Anonymous Forms
           </Typography>
-          
-          {hasSubmitted && (
-            <Alert severity="info" sx={{ mb: 2 }}>
-              You have already submitted a form. Only one submission is allowed per user.
-            </Alert>
-          )}
-          
-          {error && (
-            <Alert severity="error" sx={{ mb: 2 }}>
-              {error}
-            </Alert>
-          )}
-          
-          {success && (
-            <Alert severity="success" sx={{ mb: 2 }}>
-              Form submitted successfully!
-            </Alert>
-          )}
-          
-          <form onSubmit={handleSubmit}>
+          <Button 
+            color="inherit" 
+            onClick={handleLogout}
+          >
+            Logout
+          </Button>
+        </Toolbar>
+      </AppBar>
+      <Container maxWidth="md">
+        <Box sx={{ mt: 4 }}>
+          <Paper elevation={3} sx={{ p: 4 }}>
+            <Typography variant="h4" component="h1" gutterBottom align="center">
+              Submit Anonymous Response
+            </Typography>
+            
+            {hasSubmitted && (
+              <Alert severity="info" sx={{ mb: 2 }}>
+                You have already submitted a form. Only one submission is allowed per user.
+              </Alert>
+            )}
+            
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+            
+            {success && (
+              <Alert severity="success" sx={{ mb: 2 }}>
+                Form submitted successfully!
+              </Alert>
+            )}
+            
+            <form onSubmit={handleSubmit}>
+              <TextField
+                fullWidth
+                label="Your Response"
+                multiline
+                rows={4}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+                margin="normal"
+                required
+                disabled={hasSubmitted}
+              />
+              <Button
+                type="submit"
+                fullWidth
+                variant="contained"
+                color="primary"
+                sx={{ mt: 3 }}
+                disabled={hasSubmitted}
+              >
+                Submit
+              </Button>
+            </form>
+          </Paper>
+        </Box>
+
+        <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
+          <DialogTitle>Save Your Private Key</DialogTitle>
+          <DialogContent>
+            <Typography>
+              Please save this private key securely. You will need it to verify your submission later.
+            </Typography>
             <TextField
               fullWidth
-              label="Your Response"
-              multiline
-              rows={4}
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
+              value={privateKey}
               margin="normal"
-              required
-              disabled={hasSubmitted}
+              InputProps={{
+                readOnly: true,
+              }}
             />
-            <Button
-              type="submit"
-              fullWidth
-              variant="contained"
-              color="primary"
-              sx={{ mt: 3 }}
-              disabled={hasSubmitted}
-            >
-              Submit
+          </DialogContent>
+          <DialogActions>
+            <Button onClick={() => setShowDialog(false)} color="primary">
+              Close
             </Button>
-          </form>
-        </Paper>
-      </Box>
-
-      <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
-        <DialogTitle>Save Your Private Key</DialogTitle>
-        <DialogContent>
-          <Typography>
-            Please save this private key securely. You will need it to verify your submission later.
-          </Typography>
-          <TextField
-            fullWidth
-            value={privateKey}
-            margin="normal"
-            InputProps={{
-              readOnly: true,
-            }}
-          />
-        </DialogContent>
-        <DialogActions>
-          <Button onClick={() => setShowDialog(false)} color="primary">
-            Close
-          </Button>
-        </DialogActions>
-      </Dialog>
-    </Container>
+          </DialogActions>
+        </Dialog>
+      </Container>
+    </>
   );
 };
 

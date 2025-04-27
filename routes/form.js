@@ -203,7 +203,7 @@ router.post('/verify', auth, async (req, res) => {
       return res.json({
         verified: false,
         message: isSignatureValid 
-          ? 'Original signature is valid, but the provided private key does not match' 
+          ? 'Verification failed, the provided private key is wrong' 
           : 'Original signature could not be verified'
       });
     }
