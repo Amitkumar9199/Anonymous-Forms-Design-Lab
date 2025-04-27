@@ -213,6 +213,90 @@ router.post('/verify', auth, async (req, res) => {
   }
 });
 
+// Verify user's own response
+router.post('/verify-own-response', auth, async (req, res) => {
+  try {
+    console.log('User verifying their own response...');
+    const { privateKey } = req.body;
+    const userId = req.user.id;
+    
+    if (!privateKey) {
+      console.log('Missing private key');
+      return res.status(400).json({ error: 'Private key is required' });
+    }
+    
+    // Get user information
+    const user = await User.findById(userId);
+    if (!user) {
+      console.log('User not found:', userId);
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    if (!user.hasSubmitted) {
+      console.log('User has not submitted a form yet');
+      return res.status(400).json({ error: 'You have not submitted a form yet' });
+    }
+    
+    // Format the private key correctly if line breaks are missing
+    let formattedPrivateKey = privateKey;
+    
+    // Check if the private key format is correct (should have proper line breaks)
+    if (!privateKey.includes('\n')) {
+      console.log('Reformatting private key...');
+      
+      // Add line breaks to the private key
+      formattedPrivateKey = privateKey
+        .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+        .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+        
+      console.log('Private key reformatted');
+    }
+    
+    // Find all unverified submissions
+    const submissions = await FormSubmission.find({ verified: false });
+    console.log(`Found ${submissions.length} unverified submissions to check`);
+    
+    let verifiedSubmission = null;
+    
+    // Try to verify each submission
+    for (const submission of submissions) {
+      try {
+        console.log(`Checking submission ${submission._id}...`);
+        
+        // Re-sign the content using the provided private key
+        const newSignature = signData(submission.content, formattedPrivateKey);
+        
+        // Compare the new signature with the stored signature
+        if (newSignature === submission.signature) {
+          console.log('Match found! Submission verified:', submission._id);
+          submission.verified = true;
+          submission.userId = userId; // Associate this submission with the user
+          await submission.save();
+          verifiedSubmission = submission;
+          break;
+        }
+      } catch (error) {
+        console.log(`Error checking submission ${submission._id}:`, error.message);
+        // Continue to next submission
+      }
+    }
+    
+    if (verifiedSubmission) {
+      return res.json({ 
+        verified: true, 
+        message: 'Your response has been successfully verified and associated with your account!'
+      });
+    } else {
+      return res.status(400).json({ 
+        error: 'Could not verify any response with the provided private key. Please check your key and try again.' 
+      });
+    }
+  } catch (error) {
+    console.error('Error verifying own response:', error);
+    res.status(500).json({ error: 'Failed to verify response' });
+  }
+});
+
 // Get current user's submission status
 router.get('/my-submission-status', auth, async (req, res) => {
   try {

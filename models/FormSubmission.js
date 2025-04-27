@@ -20,6 +20,11 @@ const formSubmissionSchema = new mongoose.Schema({
   verified: {
     type: Boolean,
     default: false
+  },
+  userId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    default: null
   }
 }, {
   timestamps: true
@@ -31,7 +36,8 @@ formSubmissionSchema.pre('save', function(next) {
     hasContent: !!this.content,
     hasPublicKey: !!this.publicKey,
     hasSignature: !!this.signature,
-    // No user-related fields
+    hasUserId: !!this.userId,
+    isVerified: this.verified
   });
   next();
 });

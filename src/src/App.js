@@ -7,6 +7,7 @@ import Login from './components/Login';
 import SubmitForm from './components/SubmitForm';
 import AdminDashboard from './components/AdminDashboard';
 import ResponsesPage from './components/ResponsesPage';
+import VerifyResponsePage from './components/VerifyResponsePage';
 
 const theme = createTheme({
   palette: {
@@ -62,6 +63,14 @@ function App() {
               element={
                 <PrivateRoute>
                   <ResponsesPage />
+                </PrivateRoute>
+              } 
+            />
+            <Route 
+              path="/verify" 
+              element={
+                <PrivateRoute>
+                  <VerifyResponsePage />
                 </PrivateRoute>
               } 
             />

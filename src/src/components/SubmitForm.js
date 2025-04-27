@@ -14,7 +14,9 @@ import {
   DialogContent,
   DialogActions,
   AppBar,
-  Toolbar
+  Toolbar,
+  Grid,
+  Snackbar
 } from '@mui/material';
 import axios from 'axios';
 
@@ -25,6 +27,7 @@ const SubmitForm = () => {
   const [privateKey, setPrivateKey] = useState('');
   const [showDialog, setShowDialog] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
+  const [copySuccess, setCopySuccess] = useState(false);
   const { token, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -35,6 +38,10 @@ const SubmitForm = () => {
 
   const viewResponses = () => {
     navigate('/responses');
+  };
+
+  const goToVerify = () => {
+    navigate('/verify');
   };
 
   // Check if the user has already submitted a form
@@ -99,6 +106,18 @@ const SubmitForm = () => {
     }
   };
 
+  const handleCopyPrivateKey = () => {
+    navigator.clipboard.writeText(privateKey).then(
+      () => {
+        setCopySuccess(true);
+        setTimeout(() => setCopySuccess(false), 3000);
+      },
+      (err) => {
+        console.error('Could not copy text: ', err);
+      }
+    );
+  };
+
   return (
     <>
       <AppBar position="static">
@@ -112,6 +131,13 @@ const SubmitForm = () => {
             sx={{ mr: 2 }}
           >
             View Responses
+          </Button>
+          <Button 
+            color="inherit" 
+            onClick={goToVerify}
+            sx={{ mr: 2 }}
+          >
+            Verify Response
           </Button>
           <Button 
             color="inherit" 
@@ -169,31 +195,86 @@ const SubmitForm = () => {
                 Submit
               </Button>
             </form>
+
+            {hasSubmitted && (
+              <Box sx={{ mt: 3, textAlign: 'center' }}>
+                <Typography variant="body2" color="textSecondary" gutterBottom>
+                  Already submitted? You can verify your response to associate your email with it.
+                </Typography>
+                <Button
+                  variant="outlined"
+                  color="primary"
+                  onClick={goToVerify}
+                  sx={{ mt: 1 }}
+                >
+                  Verify My Response
+                </Button>
+              </Box>
+            )}
           </Paper>
         </Box>
 
         {/* Private Key Dialog */}
-        <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
+        <Dialog 
+          open={showDialog} 
+          onClose={() => setShowDialog(false)}
+          maxWidth="md"
+          fullWidth
+        >
           <DialogTitle>Save Your Private Key</DialogTitle>
           <DialogContent>
-            <Typography>
+            <Typography paragraph>
               Please save this private key securely. You will need it to verify your submission later.
             </Typography>
+            <Box sx={{ display: 'flex', alignItems: 'center', mb: 2 }}>
+              <Button 
+                variant="outlined" 
+                color="primary" 
+                size="small"
+                onClick={handleCopyPrivateKey}
+                sx={{ mr: 2 }}
+              >
+                Copy to Clipboard
+              </Button>
+              {copySuccess && (
+                <Typography variant="caption" color="success.main">
+                  Copied!
+                </Typography>
+              )}
+            </Box>
             <TextField
               fullWidth
               value={privateKey}
               margin="normal"
+              multiline
+              rows={6}
               InputProps={{
                 readOnly: true,
               }}
             />
+            <Alert severity="warning" sx={{ mt: 2 }}>
+              This key will only be shown once. Copy it now and store it safely. 
+              You will need it to verify your response later.
+            </Alert>
           </DialogContent>
           <DialogActions>
-            <Button onClick={() => setShowDialog(false)} color="primary">
-              Close
+            <Button 
+              onClick={() => setShowDialog(false)} 
+              color="primary"
+              variant="contained"
+            >
+              I've Saved My Key
             </Button>
           </DialogActions>
         </Dialog>
+
+        <Snackbar
+          open={copySuccess}
+          autoHideDuration={3000}
+          onClose={() => setCopySuccess(false)}
+          message="Private key copied to clipboard!"
+          anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
+        />
       </Container>
     </>
   );

@@ -13,24 +13,17 @@ import {
   TableHead,
   TableRow,
   Button,
-  TextField,
-  Dialog,
-  DialogTitle,
-  DialogContent,
-  DialogActions,
   Alert,
   AppBar,
-  Toolbar
+  Toolbar,
+  Chip
 } from '@mui/material';
 import axios from 'axios';
 
 const AdminDashboard = () => {
   const [responses, setResponses] = useState([]);
   const [submitters, setSubmitters] = useState([]);
-  const [selectedResponse, setSelectedResponse] = useState(null);
-  const [privateKey, setPrivateKey] = useState('');
-  const [verificationResult, setVerificationResult] = useState(null);
-  const [showDialog, setShowDialog] = useState(false);
+  const [error, setError] = useState('');
   const { token, logout } = useAuth();
   const navigate = useNavigate();
 
@@ -43,6 +36,13 @@ const AdminDashboard = () => {
     fetchResponses();
     fetchSubmitters();
   }, []);
+
+  // Helper function to get user email by userId
+  const getUserEmailById = (userId) => {
+    if (!userId) return 'Anonymous';
+    const user = submitters.find(submitter => submitter._id === userId);
+    return user ? user.email : 'Unknown User';
+  };
 
   const fetchResponses = async () => {
     try {
@@ -59,13 +59,15 @@ const AdminDashboard = () => {
           content: resp.content,
           hasPublicKey: !!resp.publicKey,
           hasSignature: !!resp.signature,
-          verified: resp.verified
+          verified: resp.verified,
+          userId: resp.userId
         });
       });
       
       setResponses(response.data);
     } catch (error) {
       console.error('Error fetching responses:', error);
+      setError('Failed to fetch responses. Please try again later.');
     }
   };
 
@@ -79,53 +81,7 @@ const AdminDashboard = () => {
       setSubmitters(response.data);
     } catch (error) {
       console.error('Error fetching submitters:', error);
-    }
-  };
-
-  const handleVerify = async () => {
-    if (!selectedResponse || !privateKey) return;
-
-    try {
-      console.log('Verifying response:', selectedResponse._id);
-      console.log('Response details:', {
-        id: selectedResponse._id,
-        content: selectedResponse.content.substring(0, 50),
-        hasPublicKey: !!selectedResponse.publicKey,
-        publicKeyLength: selectedResponse.publicKey ? selectedResponse.publicKey.length : 0,
-        hasSignature: !!selectedResponse.signature,
-        signatureLength: selectedResponse.signature ? selectedResponse.signature.length : 0
-      });
-      console.log('Using private key:', privateKey.substring(0, 50) + '...');
-      console.log('Private key length:', privateKey.length);
-      
-      const response = await axios.post(
-        '/api/form/verify',
-        {
-          responseId: selectedResponse._id,
-          privateKey
-        },
-        {
-          headers: { Authorization: `Bearer ${token}` }
-        }
-      );
-
-      console.log('Verification response:', response.data);
-      setVerificationResult(response.data);
-      
-      if (response.data.verified) {
-        // Refresh the responses list immediately after successful verification
-        await fetchResponses();
-        // Close the dialog
-        setShowDialog(false);
-        // Clear the private key
-        setPrivateKey('');
-        // Clear the selected response
-        setSelectedResponse(null);
-      }
-    } catch (error) {
-      console.error('Error verifying response:', error);
-      console.error('Error details:', error.response ? error.response.data : 'No response data');
-      setVerificationResult({ verified: false, message: 'Verification failed' });
+      setError('Failed to fetch user data. Please try again later.');
     }
   };
 
@@ -149,6 +105,12 @@ const AdminDashboard = () => {
           <Typography variant="h4" component="h1" gutterBottom>
             Admin Dashboard
           </Typography>
+
+          {error && (
+            <Alert severity="error" sx={{ mb: 3 }}>
+              {error}
+            </Alert>
+          )}
 
           <Paper sx={{ p: 2, mb: 4 }}>
             <Typography variant="h6" gutterBottom>
@@ -182,39 +144,46 @@ const AdminDashboard = () => {
 
           <Paper sx={{ p: 2 }}>
             <Typography variant="h6" gutterBottom>
-              Responses
+              Anonymous Responses
             </Typography>
             <TableContainer>
               <Table>
                 <TableHead>
                   <TableRow>
                     <TableCell>Content</TableCell>
-                    <TableCell>Public Key</TableCell>
-                    <TableCell>Signature</TableCell>
-                    <TableCell>Verified</TableCell>
-                    <TableCell>Actions</TableCell>
+                    <TableCell>Revealed Identity</TableCell>
+                    <TableCell>User Email</TableCell>
+                    <TableCell>Submitted At</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
                   {responses.map((response) => (
                     <TableRow key={response._id}>
                       <TableCell>{response.content}</TableCell>
-                      <TableCell>{response.publicKey ? response.publicKey.substring(0, 50) + '...' : 'N/A'}</TableCell>
-                      <TableCell>{response.signature ? response.signature.substring(0, 50) + '...' : 'N/A'}</TableCell>
-                      <TableCell>{response.verified ? 'Yes' : 'No'}</TableCell>
                       <TableCell>
-                        <Button
-                          variant="contained"
-                          color="primary"
-                          onClick={() => {
-                            setSelectedResponse(response);
-                            setShowDialog(true);
-                            setVerificationResult(null);
-                          }}
-                          disabled={response.verified}
-                        >
-                          {response.verified ? 'Verified' : 'Verify'}
-                        </Button>
+                        {response.verified ? (
+                          <Chip 
+                            label="Revealed" 
+                            color="success" 
+                            variant="outlined" 
+                          />
+                        ) : (
+                          <Chip 
+                            label="Anonymous" 
+                            color="default" 
+                            variant="outlined" 
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {response.verified && response.userId ? (
+                          getUserEmailById(response.userId)
+                        ) : (
+                          'Anonymous'
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {response.submittedAt ? new Date(response.submittedAt).toLocaleString() : 'Unknown'}
                       </TableCell>
                     </TableRow>
                   ))}
@@ -223,38 +192,6 @@ const AdminDashboard = () => {
             </TableContainer>
           </Paper>
         </Box>
-
-        <Dialog open={showDialog} onClose={() => setShowDialog(false)}>
-          <DialogTitle>Verify Response</DialogTitle>
-          <DialogContent>
-            {verificationResult && (
-              <Alert severity={verificationResult.verified ? 'success' : 'error'} sx={{ mb: 2 }}>
-                {verificationResult.message}
-              </Alert>
-            )}
-            <TextField
-              fullWidth
-              label="Private Key"
-              value={privateKey}
-              onChange={(e) => setPrivateKey(e.target.value)}
-              margin="normal"
-              multiline
-              rows={4}
-            />
-          </DialogContent>
-          <DialogActions>
-            <Button onClick={() => {
-              setShowDialog(false);
-              setPrivateKey('');
-              setVerificationResult(null);
-            }}>
-              Cancel
-            </Button>
-            <Button onClick={handleVerify} color="primary">
-              Verify
-            </Button>
-          </DialogActions>
-        </Dialog>
       </Container>
     </>
   );
