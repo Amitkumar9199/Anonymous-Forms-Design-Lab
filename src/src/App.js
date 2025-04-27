@@ -22,11 +22,18 @@ const theme = createTheme({
 });
 
 const PrivateRoute = ({ children, adminOnly = false }) => {
-  const { isAuthenticated, isAdmin } = useAuth();
+  const { isAuthenticated, isAdmin, loading } = useAuth();
   
   console.log('PrivateRoute - isAuthenticated:', isAuthenticated);
   console.log('PrivateRoute - isAdmin:', isAdmin);
   console.log('PrivateRoute - adminOnly:', adminOnly);
+  console.log('PrivateRoute - loading:', loading);
+  
+  // Show nothing while checking authentication
+  if (loading) {
+    // You could return a loading spinner here instead
+    return null;
+  }
   
   if (!isAuthenticated) {
     console.log('Not authenticated, redirecting to login');

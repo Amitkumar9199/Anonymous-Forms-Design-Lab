@@ -12,13 +12,35 @@ export const AuthProvider = ({ children }) => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
   const [token, setToken] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const MAX_VERIFICATION_ATTEMPTS = 3;
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('token');
-    if (storedToken) {
-      console.log('Found stored token, verifying...');
-      verifyToken(storedToken);
-    }
+    const initAuth = async () => {
+      setLoading(true);
+      
+      try {
+        const storedToken = localStorage.getItem('token');
+        
+        if (storedToken) {
+          console.log('Found stored token, verifying...');
+          
+          // Set token in state and axios headers immediately
+          // This prevents API calls from failing during verification
+          setToken(storedToken);
+          axios.defaults.headers.common['Authorization'] = `Bearer ${storedToken}`;
+          
+          await verifyToken(storedToken);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    initAuth();
   }, []);
 
   const verifyToken = async (tokenToVerify) => {
@@ -36,13 +58,43 @@ export const AuthProvider = ({ children }) => {
         setIsAuthenticated(true);
         setIsAdmin(response.data.isAdmin);
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokenToVerify}`;
+        // Reset verification attempts on success
+        setVerificationAttempts(0);
+        return true;
       } else {
         console.log('Token is invalid');
-        logout();
+        // Only perform logout if we've exceeded max attempts
+        // This prevents logout on transient network issues
+        if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+          logout();
+        } else {
+          setVerificationAttempts(prev => prev + 1);
+          console.log(`Token verification failed, attempt ${verificationAttempts + 1}/${MAX_VERIFICATION_ATTEMPTS}`);
+        }
+        return false;
       }
     } catch (error) {
       console.error('Token verification error:', error);
-      logout();
+      
+      // Check if this is a network error (could be offline)
+      // In that case, we trust the token temporarily
+      if (error.message.includes('Network Error')) {
+        console.log('Network error during verification, assuming token is valid');
+        setToken(tokenToVerify);
+        setIsAuthenticated(true);
+        // We can't know isAdmin status without verification, so we don't set it
+        // The user might see limited functionality until network is restored
+        return true;
+      }
+      
+      // Only log out on persistent errors
+      if (verificationAttempts >= MAX_VERIFICATION_ATTEMPTS) {
+        logout();
+      } else {
+        setVerificationAttempts(prev => prev + 1);
+        console.log(`Token verification error, attempt ${verificationAttempts + 1}/${MAX_VERIFICATION_ATTEMPTS}`);
+      }
+      return false;
     }
   };
 
@@ -82,6 +134,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setIsAuthenticated(false);
     setIsAdmin(false);
+    setVerificationAttempts(0);
     delete axios.defaults.headers.common['Authorization'];
   };
 
@@ -90,8 +143,14 @@ export const AuthProvider = ({ children }) => {
     isAdmin,
     token,
     login,
-    logout
+    logout,
+    loading
   };
+
+  // If still loading, you might want to show a spinner or loading state
+  if (loading) {
+    return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
+  }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }; 
