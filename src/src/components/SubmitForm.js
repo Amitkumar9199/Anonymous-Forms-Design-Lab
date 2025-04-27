@@ -86,9 +86,9 @@ const SubmitForm = () => {
       setShowDialog(true);
       setContent('');
       
-      // Set success message with visibility delay information
-      if (response.data.visibilityDelay) {
-        setSuccess(`Form submitted successfully! Your response will be visible to admin in approximately ${response.data.visibilityDelay} minutes.`);
+      // Set success message with visibility information
+      if (response.data.visibilityInfo) {
+        setSuccess(`Form submitted successfully! ${response.data.visibilityInfo}`);
       } else {
         setSuccess('Form submitted successfully!');
       }

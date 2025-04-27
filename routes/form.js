@@ -81,35 +81,84 @@ router.post('/submit', auth, async (req, res) => {
     });
     console.log('Updated user submission status');
     
-    // Schedule the submission to become visible after a random delay
-    // This prevents correlation by time of submission
-    const minDelay = 1 * 60 * 1000; // 1 minute minimum
-    const maxAdditionalDelay = 1 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
-    const randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
+    // Check if there are enough pending submissions to make a batch visible
+    const pendingCount = await FormSubmission.countDocuments({ visible: false });
+    console.log(`Current pending submissions count: ${pendingCount}`);
     
-    console.log(`Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
+    // Define randomDelay at a higher scope so it's available in all code paths
+    let randomDelay = 0;
+    let visibilityMessage = '';
     
-    // Set timeout to make the submission visible later
-    setTimeout(async () => {
-      try {
-        const submissionToUpdate = await FormSubmission.findById(submission._id);
-        if (submissionToUpdate) {
-          submissionToUpdate.visible = true;
-          await submissionToUpdate.save();
-          console.log(`Submission ${submission._id} is now visible to admin`);
-        }
-      } catch (err) {
-        console.error('Error making submission visible:', err);
+    if (pendingCount >= 5) {
+      console.log('Batch threshold reached! Making a batch of submissions visible...');
+      // Get the 5 oldest pending submissions
+      const batchToMakeVisible = await FormSubmission.find({ visible: false })
+        .sort({ _id: 1 })
+        .limit(5);
+      
+      // Make all submissions in the batch visible
+      for (const sub of batchToMakeVisible) {
+        sub.visible = true;
+        await sub.save();
+        console.log(`Made submission ${sub._id} visible as part of batch`);
       }
-    }, randomDelay);
+      
+      console.log('Batch processing complete - 5 submissions now visible');
+      visibilityMessage = 'Your submission is now visible to admin as part of a batch of submissions.';
+    } else {
+      // Schedule the submission to become visible after a random delay
+      // This prevents correlation by time of submission
+      const minDelay = 1 * 60 * 1000; // 1 minute minimum
+      const maxAdditionalDelay = 29 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
+      randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
+      
+      console.log(`Batch threshold not reached. Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
+      
+      // Set timeout to make the submission visible later
+      setTimeout(async () => {
+        try {
+          // Check if this submission is already visible (could have been made visible as part of a batch)
+          const submissionToUpdate = await FormSubmission.findById(submission._id);
+          if (submissionToUpdate && !submissionToUpdate.visible) {
+            submissionToUpdate.visible = true;
+            await submissionToUpdate.save();
+            console.log(`Submission ${submission._id} is now visible to admin via timeout`);
+            
+            // Check if making this submission visible creates an opportunity for a batch
+            const remainingPending = await FormSubmission.countDocuments({ visible: false });
+            if (remainingPending >= 5) {
+              console.log('After timeout, found enough submissions for a batch. Processing batch...');
+              // Get the 5 oldest pending submissions
+              const batchToProcess = await FormSubmission.find({ visible: false })
+                .sort({ _id: 1 })
+                .limit(5);
+              
+              // Make all submissions in the batch visible
+              for (const sub of batchToProcess) {
+                sub.visible = true;
+                await sub.save();
+                console.log(`Made submission ${sub._id} visible as part of post-timeout batch`);
+              }
+              
+              console.log('Post-timeout batch processing complete');
+            }
+          }
+        } catch (err) {
+          console.error('Error in timeout handler for making submission visible:', err);
+        }
+      }, randomDelay);
+      
+      visibilityMessage = `Your submission will be visible to admin in approximately ${Math.round(randomDelay/1000/60)} minutes, unless 5 submissions accumulate first.`;
+    }
     
     // Return the private key to the user
     // The user must save this key to verify their submission later
     console.log('Returning private key to user (length):', privateKey.length);
+    
     res.status(201).json({
       message: 'Form submitted successfully',
       privateKey, // The user must save this key
-      visibilityDelay: Math.round(randomDelay/1000/60) // Let user know when it will be visible (in minutes)
+      visibilityInfo: visibilityMessage
     });
   } catch (error) {
     console.error('Error submitting form:', error);
