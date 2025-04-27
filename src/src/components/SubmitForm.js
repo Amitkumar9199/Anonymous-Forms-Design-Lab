@@ -85,7 +85,14 @@ const SubmitForm = () => {
       setPrivateKey(response.data.privateKey);
       setShowDialog(true);
       setContent('');
-      setSuccess(true);
+      
+      // Set success message with visibility delay information
+      if (response.data.visibilityDelay) {
+        setSuccess(`Form submitted successfully! Your response will be visible to admin in approximately ${response.data.visibilityDelay} minutes.`);
+      } else {
+        setSuccess('Form submitted successfully!');
+      }
+      
       setHasSubmitted(true);
       console.log('Form submitted successfully');
     } catch (err) {
@@ -162,7 +169,7 @@ const SubmitForm = () => {
             
             {success && (
               <Alert severity="success" sx={{ mb: 2 }}>
-                Form submitted successfully!
+                {success}
               </Alert>
             )}
 

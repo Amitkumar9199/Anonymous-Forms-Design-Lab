@@ -21,6 +21,10 @@ const formSubmissionSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'User',
     default: null
+  },
+  visible: {
+    type: Boolean,
+    default: false
   }
 }, {
   // Remove timestamps to enhance privacy
@@ -34,7 +38,8 @@ formSubmissionSchema.pre('save', function(next) {
     hasPublicKey: !!this.publicKey,
     hasSignature: !!this.signature,
     hasUserId: !!this.userId,
-    isVerified: this.verified
+    isVerified: this.verified,
+    isVisible: this.visible
   });
   next();
 });

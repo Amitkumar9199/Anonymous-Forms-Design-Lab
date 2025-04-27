@@ -24,7 +24,6 @@ router.post('/submit', auth, async (req, res) => {
     }
     
     // Check if user has already submitted (optional restriction)
-    // Comment out these lines if you want to allow multiple submissions
     const user = await User.findById(req.user.id);
     if (user.hasSubmitted) {
       console.log('User has already submitted a form');
@@ -62,12 +61,12 @@ router.post('/submit', auth, async (req, res) => {
     const signature = signData(content, privateKey);
     
     // Create a completely anonymous submission
-    // We don't store user IDs or emails in the submission
     const submission = new FormSubmission({
       content,
       publicKey,
       signature,
-      submittedAt: new Date()
+      // Add a "pending" flag to hide new submissions initially
+      visible: false
     });
     
     // Save the submission
@@ -82,12 +81,35 @@ router.post('/submit', auth, async (req, res) => {
     });
     console.log('Updated user submission status');
     
+    // Schedule the submission to become visible after a random delay
+    // This prevents correlation by time of submission
+    const minDelay = 1 * 60 * 1000; // 1 minute minimum
+    const maxAdditionalDelay = 1 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
+    const randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
+    
+    console.log(`Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
+    
+    // Set timeout to make the submission visible later
+    setTimeout(async () => {
+      try {
+        const submissionToUpdate = await FormSubmission.findById(submission._id);
+        if (submissionToUpdate) {
+          submissionToUpdate.visible = true;
+          await submissionToUpdate.save();
+          console.log(`Submission ${submission._id} is now visible to admin`);
+        }
+      } catch (err) {
+        console.error('Error making submission visible:', err);
+      }
+    }, randomDelay);
+    
     // Return the private key to the user
     // The user must save this key to verify their submission later
     console.log('Returning private key to user (length):', privateKey.length);
     res.status(201).json({
       message: 'Form submitted successfully',
-      privateKey // The user must save this key
+      privateKey, // The user must save this key
+      visibilityDelay: Math.round(randomDelay/1000/60) // Let user know when it will be visible (in minutes)
     });
   } catch (error) {
     console.error('Error submitting form:', error);
@@ -99,8 +121,9 @@ router.post('/submit', auth, async (req, res) => {
 router.get('/responses', auth, async (req, res) => {
   try {
     console.log('Fetching all form submissions...');
-    const submissions = await FormSubmission.find().sort({ submittedAt: -1 });
-    console.log(`Found ${submissions.length} submissions`);
+    // Only fetch visible submissions
+    const submissions = await FormSubmission.find({ visible: true }).sort({ _id: -1 });
+    console.log(`Found ${submissions.length} visible submissions`);
     
     // Log the first submission for debugging
     if (submissions.length > 0) {
@@ -270,6 +293,7 @@ router.post('/verify-own-response', auth, async (req, res) => {
           console.log('Match found! Submission verified:', submission._id);
           submission.verified = true;
           submission.userId = userId; // Associate this submission with the user
+          submission.visible = true; // Make immediately visible once verified
           await submission.save();
           verifiedSubmission = submission;
           break;
@@ -308,8 +332,7 @@ router.get('/my-submission-status', auth, async (req, res) => {
     
     res.json({
       hasSubmitted: user.hasSubmitted,
-      submissionCount: user.submissionCount,
-      lastSubmissionAt: user.lastSubmissionAt
+      submissionCount: user.submissionCount
     });
   } catch (error) {
     console.error('Error checking submission status:', error);
