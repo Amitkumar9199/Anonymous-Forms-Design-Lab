@@ -14,6 +14,7 @@ export const AuthProvider = ({ children }) => {
   const [token, setToken] = useState(null);
   const [loading, setLoading] = useState(true);
   const [verificationAttempts, setVerificationAttempts] = useState(0);
+  const [user, setUser] = useState(null);
   const MAX_VERIFICATION_ATTEMPTS = 3;
 
   useEffect(() => {
@@ -57,6 +58,9 @@ export const AuthProvider = ({ children }) => {
         setToken(tokenToVerify);
         setIsAuthenticated(true);
         setIsAdmin(response.data.isAdmin);
+        if (response.data.user) {
+          setUser(response.data.user);
+        }
         axios.defaults.headers.common['Authorization'] = `Bearer ${tokenToVerify}`;
         // Reset verification attempts on success
         setVerificationAttempts(0);
@@ -98,20 +102,21 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const login = async (email) => {
+  const login = async (email, password) => {
     try {
       console.log('Attempting login with email:', email);
-      const response = await axios.post('/api/auth/login', { email });
+      const response = await axios.post('/api/auth/login', { email, password });
       console.log('Login response:', response.data);
       
-      const { token, isAdmin, privateKey } = response.data;
+      const { token, user, privateKey } = response.data;
       
       if (token) {
         console.log('Login successful, storing token');
         localStorage.setItem('token', token);
         setToken(token);
         setIsAuthenticated(true);
-        setIsAdmin(isAdmin);
+        setIsAdmin(user.isAdmin);
+        setUser(user);
         axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
         
         if (privateKey) {
@@ -127,6 +132,31 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  const signup = async (name, email, password) => {
+    try {
+      console.log('Attempting signup with name and email:', name, email);
+      const response = await axios.post('/api/auth/signup', { name, email, password });
+      console.log('Signup response:', response.data);
+      
+      const { token, user } = response.data;
+      
+      if (token) {
+        console.log('Signup successful, storing token');
+        localStorage.setItem('token', token);
+        setToken(token);
+        setIsAuthenticated(true);
+        setIsAdmin(user.isAdmin);
+        setUser(user);
+        axios.defaults.headers.common['Authorization'] = `Bearer ${token}`;
+      }
+      
+      return response.data;
+    } catch (error) {
+      console.error('Signup error:', error);
+      throw error;
+    }
+  };
+
   const logout = () => {
     console.log('Logging out...');
     localStorage.removeItem('token');
@@ -134,6 +164,7 @@ export const AuthProvider = ({ children }) => {
     setToken(null);
     setIsAuthenticated(false);
     setIsAdmin(false);
+    setUser(null);
     setVerificationAttempts(0);
     delete axios.defaults.headers.common['Authorization'];
   };
@@ -142,7 +173,9 @@ export const AuthProvider = ({ children }) => {
     isAuthenticated,
     isAdmin,
     token,
+    user,
     login,
+    signup,
     logout,
     loading
   };

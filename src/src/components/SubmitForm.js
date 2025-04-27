@@ -19,6 +19,7 @@ import {
   Snackbar
 } from '@mui/material';
 import axios from 'axios';
+import NavHeader from './NavHeader';
 
 const SubmitForm = () => {
   const [content, setContent] = useState('');
@@ -127,33 +128,7 @@ const SubmitForm = () => {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Anonymous Portal
-          </Typography>
-          <Button 
-            color="inherit" 
-            onClick={viewResponses}
-            sx={{ mr: 2 }}
-          >
-            View Responses
-          </Button>
-          <Button 
-            color="inherit" 
-            onClick={goToVerify}
-            sx={{ mr: 2 }}
-          >
-            Verify Response
-          </Button>
-          <Button 
-            color="inherit" 
-            onClick={handleLogout}
-          >
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <NavHeader title="Submit Response" />
       <Container maxWidth="md">
         <Box sx={{ mt: 4 }}>
           <Paper elevation={3} sx={{ p: 4 }}>

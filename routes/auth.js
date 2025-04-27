@@ -11,75 +11,114 @@ router.use((req, res, next) => {
   next();
 });
 
-router.post('/login', async (req, res) => {
+// Signup route
+router.post('/signup', async (req, res) => {
   try {
-    console.log('Login attempt with email:', req.body.email);
-    const { email } = req.body;
+    console.log('Signup attempt with data:', JSON.stringify(req.body));
+    const { name, email, password } = req.body;
     
-    if (!email) {
-      console.log('No email provided');
-      return res.status(400).json({ message: 'Email is required' });
+    if (!name || !email || !password) {
+      console.log('Missing required fields for signup');
+      return res.status(400).json({ message: 'Name, email and password are required' });
     }
-
-    let user = await User.findOne({ email });
-    console.log('User found:', user ? 'yes' : 'no');
-
-    let privateKey = null;
-    if (!user) {
-      console.log('Generating new key pair for user');
-      const keyPair = generateKeyPair();
-      privateKey = keyPair.privateKey;
-      
-      console.log('Creating new user with public key');
-      user = new User({
-        email,
-        publicKey: keyPair.publicKey,
-        isAdmin: email === 'admin@example.com'
-      });
-      
-      try {
-        await user.save();
-        console.log('New user saved successfully with public key');
-        console.log('User public key length:', user.publicKey ? user.publicKey.length : 0);
-      } catch (saveError) {
-        console.error('Error saving new user:', saveError);
-        return res.status(500).json({ message: 'Error creating user' });
-      }
-    } else {
-      console.log('Existing user public key length:', user.publicKey ? user.publicKey.length : 0);
-      if (!user.publicKey) {
-        console.log('No public key found for existing user, generating new key pair');
-        const keyPair = generateKeyPair();
-        user.publicKey = keyPair.publicKey;
-        privateKey = keyPair.privateKey;
-        await user.save();
-        console.log('Updated user with new public key');
-      }
+    
+    // Check if user already exists
+    const existingUser = await User.findOne({ email });
+    if (existingUser) {
+      console.log('User already exists with email:', email);
+      return res.status(400).json({ message: 'Email already in use' });
     }
-
-    console.log('User isAdmin status:', user.isAdmin);
-
+    
+    // Create new user
+    const user = new User({
+      name,
+      email,
+      password,
+      isAdmin: email === 'admin@example.com' && name.toLowerCase().includes('admin')
+    });
+    
+    await user.save();
+    console.log('User registered successfully:', user.email);
+    
+    // Generate token for immediate login
     const token = jwt.sign(
       { userId: user._id, isAdmin: user.isAdmin },
       process.env.JWT_SECRET,
       { expiresIn: '7d' }
     );
-
-    console.log('Login successful, sending response');
-    const response = { 
-      token, 
-      isAdmin: user.isAdmin,
-      privateKey
-    };
     
-    console.log('Response data:', {
-      token: token ? 'present' : 'missing',
-      isAdmin: user.isAdmin,
-      privateKey: privateKey ? 'present' : 'missing',
-      privateKeyLength: privateKey ? privateKey.length : 0
+    res.status(201).json({
+      message: 'User registered successfully',
+      token,
+      user: {
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin
+      }
     });
+  } catch (error) {
+    console.error('Signup error:', error);
+    res.status(500).json({ 
+      message: 'Error during registration',
+      error: error.message 
+    });
+  }
+});
+
+// Login route
+router.post('/login', async (req, res) => {
+  try {
+    console.log('Login attempt with email:', req.body.email);
+    const { email, password } = req.body;
     
-    res.json(response);
+    if (!email || !password) {
+      return res.status(400).json({ message: 'Email and password are required' });
+    }
+
+    const user = await User.findOne({ email });
+    
+    if (!user) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+    
+    // Verify password
+    const isMatch = await user.comparePassword(password);
+    
+    if (!isMatch) {
+      return res.status(401).json({ message: 'Invalid credentials' });
+    }
+
+    // Special admin check for admin@example.com
+    if (email === 'admin@example.com' && user.name.toLowerCase().includes('admin') && !user.isAdmin) {
+      user.isAdmin = true;
+      await user.save();
+    }
+
+    let privateKey = null;
+    
+    // Generate public/private key if it doesn't exist
+    if (!user.publicKey) {
+      const keyPair = generateKeyPair();
+      user.publicKey = keyPair.publicKey;
+      privateKey = keyPair.privateKey;
+      await user.save();
+    }
+
+    const token = jwt.sign(
+      { userId: user._id, isAdmin: user.isAdmin },
+      process.env.JWT_SECRET || 'your-secret-key-for-development',
+      { expiresIn: '7d' }
+    );
+
+    res.json({ 
+      token, 
+      user: {
+        name: user.name,
+        email: user.email,
+        isAdmin: user.isAdmin
+      },
+      privateKey
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ 
@@ -92,22 +131,37 @@ router.post('/login', async (req, res) => {
 router.get('/verify', async (req, res) => {
   try {
     const token = req.headers.authorization?.split(' ')[1];
-    console.log('Verification attempt with token:', token ? 'present' : 'missing');
     
     if (!token) {
       return res.json({ valid: false });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findById(decoded.userId);
+    try {
+      const decoded = jwt.verify(token, process.env.JWT_SECRET || 'your-secret-key-for-development');
+      
+      const user = await User.findById(decoded.userId);
 
-    if (!user) {
-      console.log('User not found for token');
-      return res.json({ valid: false });
+      if (!user) {
+        return res.json({ valid: false });
+      }
+      
+      // Extra check for admin@example.com to ensure admin privileges
+      if (user.email === 'admin@example.com' && user.name.toLowerCase().includes('admin') && !user.isAdmin) {
+        user.isAdmin = true;
+        await user.save();
+      }
+
+      res.json({ 
+        valid: true, 
+        isAdmin: user.isAdmin,
+        user: {
+          name: user.name,
+          email: user.email
+        }
+      });
+    } catch (jwtError) {
+      return res.json({ valid: false, error: 'Invalid token' });
     }
-
-    console.log('Token verified successfully, isAdmin:', user.isAdmin);
-    res.json({ valid: true, isAdmin: user.isAdmin });
   } catch (error) {
     console.error('Token verification error:', error);
     res.json({ valid: false });

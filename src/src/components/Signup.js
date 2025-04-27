@@ -13,40 +13,65 @@ import {
   Divider
 } from '@mui/material';
 
-const Login = () => {
+const Signup = () => {
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  const { signup } = useAuth();
   const navigate = useNavigate();
+
+  const validateForm = () => {
+    // Reset error
+    setError('');
+
+    // Check if all fields are filled
+    if (!name || !email || !password || !confirmPassword) {
+      setError('All fields are required');
+      return false;
+    }
+
+    // Validate email format
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(email)) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+
+    // Validate password strength
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters long');
+      return false;
+    }
+
+    // Check if passwords match
+    if (password !== confirmPassword) {
+      setError('Passwords do not match');
+      return false;
+    }
+
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError('');
+    
+    if (!validateForm()) {
+      return;
+    }
+
     setLoading(true);
     
     try {
-      // Use the login function from context
-      const response = await login(email, password);
+      await signup(name, email, password);
       
-      // Redirect based on user role
-      if (response.user.isAdmin) {
-        navigate('/admin');
-      } else {
-        navigate('/submit');
-      }
+      // Redirect to submission page after successful signup
+      navigate('/submit');
     } catch (err) {
-      console.error('Login error:', err);
-      
-      // Set a specific error message
-      if (err.response?.data?.message) {
-        setError(err.response.data.message);
-      } else if (err.message.includes('Network Error')) {
-        setError('Network error. Please check if the server is running.');
-      } else {
-        setError('Login failed. Please try again.');
-      }
+      console.error('Signup error:', err);
+      setError(err.response?.data?.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -57,23 +82,34 @@ const Login = () => {
       <Box sx={{ mt: 8, mb: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom align="center">
-            Login
+            Create Account
           </Typography>
+          
           {error && (
             <Alert severity="error" sx={{ mb: 2 }}>
               {error}
             </Alert>
           )}
+          
           <form onSubmit={handleSubmit}>
             <TextField
               fullWidth
-              label="Email"
+              label="Full Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              margin="normal"
+              required
+              autoFocus
+            />
+            
+            <TextField
+              fullWidth
+              label="Email Address"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               margin="normal"
               required
-              autoFocus
             />
             
             <TextField
@@ -86,6 +122,16 @@ const Login = () => {
               required
             />
             
+            <TextField
+              fullWidth
+              label="Confirm Password"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              margin="normal"
+              required
+            />
+            
             <Button
               type="submit"
               variant="contained"
@@ -94,7 +140,7 @@ const Login = () => {
               sx={{ mt: 3, mb: 2 }}
               disabled={loading}
             >
-              {loading ? 'Signing in...' : 'Login'}
+              {loading ? 'Creating Account...' : 'Sign Up'}
             </Button>
             
             <Divider sx={{ my: 2 }} />
@@ -102,9 +148,9 @@ const Login = () => {
             <Grid container justifyContent="center">
               <Grid item>
                 <Typography variant="body2">
-                  Don't have an account?{' '}
-                  <Link to="/signup" style={{ textDecoration: 'none' }}>
-                    Sign up
+                  Already have an account?{' '}
+                  <Link to="/" style={{ textDecoration: 'none' }}>
+                    Sign in
                   </Link>
                 </Typography>
               </Grid>
@@ -116,4 +162,4 @@ const Login = () => {
   );
 };
 
-export default Login; 
+export default Signup; 

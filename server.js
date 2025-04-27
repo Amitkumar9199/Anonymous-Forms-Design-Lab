@@ -14,16 +14,16 @@ app.use(cors({
   credentials: true
 }));
 
-// Logging middleware
-app.use((req, res, next) => {
-  console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
-  console.log('Headers:', req.headers);
-  console.log('Body:', req.body);
-  next();
-});
-
 // Middleware
 app.use(express.json());
+
+// Logging in development environment only
+if (process.env.NODE_ENV !== 'production') {
+  app.use((req, res, next) => {
+    console.log(`[${new Date().toISOString()}] ${req.method} ${req.url}`);
+    next();
+  });
+}
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGODB_URI)
@@ -33,6 +33,9 @@ mongoose.connect(process.env.MONGODB_URI)
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/form', require('./routes/form'));
+
+// Serve static files from the public directory
+app.use(express.static(path.join(__dirname, 'public')));
 
 // Serve static files from the React app in production
 if (process.env.NODE_ENV === 'production') {

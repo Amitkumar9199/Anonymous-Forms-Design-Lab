@@ -19,6 +19,7 @@ import {
   Chip
 } from '@mui/material';
 import axios from 'axios';
+import NavHeader from './NavHeader';
 
 const AdminDashboard = () => {
   const [responses, setResponses] = useState([]);
@@ -87,19 +88,7 @@ const AdminDashboard = () => {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Admin Dashboard
-          </Typography>
-          <Button 
-            color="inherit" 
-            onClick={handleLogout}
-          >
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <NavHeader title="Admin Dashboard" />
       <Container maxWidth="lg">
         <Box sx={{ mt: 4, mb: 4 }}>
           <Typography variant="h4" component="h1" gutterBottom>

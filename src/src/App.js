@@ -4,6 +4,7 @@ import { ThemeProvider, createTheme } from '@mui/material/styles';
 import CssBaseline from '@mui/material/CssBaseline';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 import Login from './components/Login';
+import Signup from './components/Signup';
 import SubmitForm from './components/SubmitForm';
 import AdminDashboard from './components/AdminDashboard';
 import ResponsesPage from './components/ResponsesPage';
@@ -57,6 +58,7 @@ function App() {
         <Router>
           <Routes>
             <Route path="/" element={<Login />} />
+            <Route path="/signup" element={<Signup />} />
             <Route 
               path="/submit" 
               element={

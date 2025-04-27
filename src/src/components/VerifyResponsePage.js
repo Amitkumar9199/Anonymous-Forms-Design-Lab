@@ -14,6 +14,7 @@ import {
   CircularProgress
 } from '@mui/material';
 import axios from 'axios';
+import NavHeader from './NavHeader';
 
 const VerifyResponsePage = () => {
   const [privateKey, setPrivateKey] = useState('');
@@ -89,26 +90,7 @@ const VerifyResponsePage = () => {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Verify Your Response
-          </Typography>
-          <Button 
-            color="inherit" 
-            onClick={goBack}
-            sx={{ mr: 2 }}
-          >
-            Back to Form
-          </Button>
-          <Button 
-            color="inherit" 
-            onClick={handleLogout}
-          >
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <NavHeader title="Verify Your Response" />
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Box sx={{ mb: 3 }}>

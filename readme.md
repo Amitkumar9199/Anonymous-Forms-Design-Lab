@@ -16,5 +16,10 @@
     `npm start` 
 
 3. erase database
-    `node clearData.js`
+    `node scripts/clearData.js`
 
+
+# create admin
+    `node scripts/seedAdmin.js`
+
+    

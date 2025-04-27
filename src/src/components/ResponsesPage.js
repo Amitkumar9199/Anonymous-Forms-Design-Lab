@@ -17,6 +17,7 @@ import {
   Paper
 } from '@mui/material';
 import axios from 'axios';
+import NavHeader from './NavHeader';
 
 const ResponsesPage = () => {
   const [responses, setResponses] = useState([]);
@@ -56,26 +57,7 @@ const ResponsesPage = () => {
 
   return (
     <>
-      <AppBar position="static">
-        <Toolbar>
-          <Typography variant="h6" component="div" sx={{ flexGrow: 1 }}>
-            Anonymous Responses
-          </Typography>
-          <Button 
-            color="inherit" 
-            onClick={goBack}
-            sx={{ mr: 2 }}
-          >
-            Back to Form
-          </Button>
-          <Button 
-            color="inherit" 
-            onClick={handleLogout}
-          >
-            Logout
-          </Button>
-        </Toolbar>
-      </AppBar>
+      <NavHeader title="Responses" />
       <Container maxWidth="md" sx={{ mt: 4 }}>
         <Paper elevation={3} sx={{ p: 4 }}>
           <Box sx={{ mb: 3 }}>
