@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
     type: Boolean,
     default: false
   },
-  // New fields for tracking form submissions
+  // Fields for tracking form submissions
   hasSubmitted: {
     type: Boolean,
     default: false
@@ -26,13 +26,10 @@ const userSchema = new mongoose.Schema({
   submissionCount: {
     type: Number,
     default: 0
-  },
-  lastSubmissionAt: {
-    type: Date,
-    default: null
   }
 }, {
-  timestamps: true
+  // Remove timestamps to enhance privacy
+  timestamps: false
 });
 
 // Add a pre-save hook to log the public key

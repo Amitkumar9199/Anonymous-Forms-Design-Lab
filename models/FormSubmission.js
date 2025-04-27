@@ -13,10 +13,6 @@ const formSubmissionSchema = new mongoose.Schema({
     type: String,
     required: true
   },
-  submittedAt: {
-    type: Date,
-    default: Date.now
-  },
   verified: {
     type: Boolean,
     default: false
@@ -27,7 +23,8 @@ const formSubmissionSchema = new mongoose.Schema({
     default: null
   }
 }, {
-  timestamps: true
+  // Remove timestamps to enhance privacy
+  timestamps: false
 });
 
 // Add logging to track what's being saved

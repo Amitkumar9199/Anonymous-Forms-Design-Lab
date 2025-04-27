@@ -78,8 +78,7 @@ router.post('/submit', auth, async (req, res) => {
     // Update the user's submission status
     await User.findByIdAndUpdate(req.user.id, {
       hasSubmitted: true,
-      $inc: { submissionCount: 1 },
-      lastSubmissionAt: new Date()
+      $inc: { submissionCount: 1 }
     });
     console.log('Updated user submission status');
     
@@ -120,8 +119,8 @@ router.get('/responses', auth, async (req, res) => {
 router.get('/submitters', auth, async (req, res) => {
   try {
     const submitters = await User.find()
-      .select('email isAdmin hasSubmitted submissionCount lastSubmissionAt')
-      .sort({ createdAt: -1 });
+      .select('email isAdmin hasSubmitted submissionCount')
+      .sort({ email: 1 });
     res.json(submitters);
   } catch (error) {
     console.error('Error fetching submitters:', error);

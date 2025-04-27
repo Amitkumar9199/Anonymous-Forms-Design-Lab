@@ -124,7 +124,6 @@ const AdminDashboard = () => {
                     <TableCell>Admin Status</TableCell>
                     <TableCell>Has Submitted</TableCell>
                     <TableCell>Submissions</TableCell>
-                    <TableCell>Last Submission</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -134,7 +133,6 @@ const AdminDashboard = () => {
                       <TableCell>{submitter.isAdmin ? 'Yes' : 'No'}</TableCell>
                       <TableCell>{submitter.hasSubmitted ? 'Yes' : 'No'}</TableCell>
                       <TableCell>{submitter.submissionCount || 0}</TableCell>
-                      <TableCell>{submitter.lastSubmissionAt ? new Date(submitter.lastSubmissionAt).toLocaleString() : 'Never'}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
@@ -153,7 +151,6 @@ const AdminDashboard = () => {
                     <TableCell>Content</TableCell>
                     <TableCell>Revealed Identity</TableCell>
                     <TableCell>User Email</TableCell>
-                    <TableCell>Submitted At</TableCell>
                   </TableRow>
                 </TableHead>
                 <TableBody>
@@ -181,9 +178,6 @@ const AdminDashboard = () => {
                         ) : (
                           'Anonymous'
                         )}
-                      </TableCell>
-                      <TableCell>
-                        {response.submittedAt ? new Date(response.submittedAt).toLocaleString() : 'Unknown'}
                       </TableCell>
                     </TableRow>
                   ))}
