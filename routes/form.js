@@ -108,8 +108,8 @@ router.post('/submit', auth, async (req, res) => {
     } else {
       // Schedule the submission to become visible after a random delay
       // This prevents correlation by time of submission
-      const minDelay = 1 * 60 * 1000; // 1 minute minimum
-      const maxAdditionalDelay = 29 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
+      const minDelay = 5 * 60 * 1000; // 1 minute minimum
+      const maxAdditionalDelay = 25 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
       randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
       
       console.log(`Batch threshold not reached. Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
