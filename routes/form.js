@@ -4,6 +4,7 @@ const FormSubmission = require('../models/FormSubmission');
 const User = require('../models/User');
 const { generateKeyPair, encryptWithPublicKey, decryptWithPrivateKey } = require('../services/crypto');
 const { auth, adminAuth } = require('../middleware/auth');
+const mongoose = require('mongoose');
 
 // Middleware to log all requests
 router.use((req, res, next) => {
@@ -86,26 +87,36 @@ router.post('/submit', auth, async (req, res) => {
     } else {
       // Schedule the submission to become visible after a random delay
       // This prevents correlation by time of submission
-      const minDelay = 1 * 60 * 1000; // 5 minutes minimum
-      const maxAdditionalDelay = 2 * 60 * 1000; // Up to an additional 25 minutes (total max: 30 minutes)
+      const minDelay = 5 * 60 * 1000; // 5 minute minimum
+      const maxAdditionalDelay = 25 * 60 * 1000; // Up to an additional 25 minute (total max: 2 minutes)
       randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
       
       console.log(`Batch threshold not reached. Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
+      console.log(`Submission ID that will be made visible: ${submission._id.toString()}`);
       
       // Set timeout to make the submission visible later
       setTimeout(async () => {
         try {
-          // Check if this submission is already visible (could have been made visible as part of a batch)
+          console.log(`⏰ Timeout triggered for submission ${submission._id}`);
+          
+          // Find the submission and make it visible
           const submissionToUpdate = await FormSubmission.findById(submission._id);
-          if (submissionToUpdate && !submissionToUpdate.visible) {
+          
+          if (!submissionToUpdate) {
+            console.error(`❌ Submission ${submission._id} not found in database when trying to make visible`);
+            return;
+          }
+          
+          if (!submissionToUpdate.visible) {
+            console.log(`✅ Making submission ${submission._id} visible`);
             submissionToUpdate.visible = true;
             await submissionToUpdate.save();
-            console.log(`Submission ${submission._id} is now visible to admin via timeout`);
+            console.log(`✅ Submission ${submission._id} is now visible to admin via timeout`);
             
             // Check if making this submission visible creates an opportunity for a batch
             const remainingPending = await FormSubmission.countDocuments({ visible: false });
             if (remainingPending >= 5) {
-              console.log('After timeout, found enough submissions for a batch. Processing batch...');
+              console.log('Found enough submissions for a batch after timeout. Processing batch...');
               // Get the 5 oldest pending submissions
               const batchToProcess = await FormSubmission.find({ visible: false })
                 .sort({ _id: 1 })
@@ -120,9 +131,22 @@ router.post('/submit', auth, async (req, res) => {
               
               console.log('Post-timeout batch processing complete');
             }
+          } else {
+            console.log(`⚠️ Submission ${submission._id} is already visible, no action needed`);
           }
         } catch (err) {
-          console.error('Error in timeout handler for making submission visible:', err);
+          console.error(`❌ Error in timeout handler for making submission ${submission._id} visible:`, err);
+          
+          // Emergency fallback - try one more time after a short delay
+          setTimeout(async () => {
+            try {
+              console.log(`🔄 Retry: Setting visibility for submission ${submission._id}`);
+              await FormSubmission.findByIdAndUpdate(submission._id, { visible: true });
+              console.log(`✅ Retry successful: Submission ${submission._id} visibility updated`);
+            } catch (retryErr) {
+              console.error(`💥 Final retry failed for submission ${submission._id}:`, retryErr);
+            }
+          }, 5000); // Retry after 5 seconds
         }
       }, randomDelay);
       
@@ -148,9 +172,39 @@ router.post('/submit', auth, async (req, res) => {
 router.get('/responses', auth, async (req, res) => {
   try {
     console.log('Fetching all form submissions...');
+    
+    // Get statistics about submissions
+    const totalCount = await FormSubmission.countDocuments();
+    const visibleCount = await FormSubmission.countDocuments({ visible: true });
+    const hiddenCount = await FormSubmission.countDocuments({ visible: false });
+    
+    console.log(`Submission stats - Total: ${totalCount}, Visible: ${visibleCount}, Hidden: ${hiddenCount}`);
+    
     // Only fetch visible submissions
     const submissions = await FormSubmission.find({ visible: true }).sort({ _id: -1 });
     console.log(`Found ${submissions.length} visible submissions`);
+    
+    // Log the IDs of visible submissions
+    if (submissions.length > 0) {
+      console.log('Visible submission IDs:', submissions.map(s => s._id.toString()));
+    } else {
+      console.log('No visible submissions found');
+      
+      // If no visible submissions, check if there are any submissions at all
+      if (totalCount > 0) {
+        console.log('There are submissions in the database, but none are marked as visible');
+        
+        // Log a sample of the first few submissions
+        const sampleSubmissions = await FormSubmission.find().limit(3);
+        console.log('Sample submissions:', sampleSubmissions.map(s => ({
+          id: s._id.toString(),
+          visible: s.visible,
+          verified: s.verified,
+          hasContent: !!s.content,
+          createdAt: s._id.getTimestamp()
+        })));
+      }
+    }
     
     // For verified submissions, get the user email
     const responsesWithUserInfo = await Promise.all(submissions.map(async (submission) => {
@@ -381,6 +435,58 @@ router.get('/my-submission-status', auth, async (req, res) => {
   } catch (error) {
     console.error('Error checking submission status:', error);
     res.status(500).json({ error: 'Failed to check submission status' });
+  }
+});
+
+// Admin endpoint to check and fix submission visibility
+router.post('/check-visibility', adminAuth, async (req, res) => {
+  try {
+    console.log('Admin checking submission visibility status...');
+    
+    // Get statistics about submissions
+    const totalCount = await FormSubmission.countDocuments();
+    const visibleCount = await FormSubmission.countDocuments({ visible: true });
+    const hiddenCount = await FormSubmission.countDocuments({ visible: false });
+    
+    console.log(`Submission stats - Total: ${totalCount}, Visible: ${visibleCount}, Hidden: ${hiddenCount}`);
+    
+    // Check for submissions that should be visible by now (older than 2 minutes)
+    const twoMinutesAgo = new Date(Date.now() - (2 * 60 * 1000));
+    const stuckSubmissions = await FormSubmission.find({
+      visible: false,
+      _id: { $lt: mongoose.Types.ObjectId.createFromTime(Math.floor(twoMinutesAgo.getTime() / 1000)) }
+    });
+    
+    console.log(`Found ${stuckSubmissions.length} submissions that are older than 2 minutes but still not visible`);
+    
+    // Fix stuck submissions if requested
+    let fixedCount = 0;
+    if (req.body.fix === true && stuckSubmissions.length > 0) {
+      for (const submission of stuckSubmissions) {
+        submission.visible = true;
+        await submission.save();
+        fixedCount++;
+        console.log(`Fixed visibility for submission ${submission._id}`);
+      }
+    }
+    
+    // Return status
+    res.json({
+      status: 'success',
+      stats: {
+        total: totalCount,
+        visible: visibleCount,
+        hidden: hiddenCount,
+        stuck: stuckSubmissions.length,
+        fixed: fixedCount
+      },
+      message: fixedCount > 0 
+        ? `Fixed ${fixedCount} stuck submissions` 
+        : `Found ${stuckSubmissions.length} stuck submissions. Send {"fix": true} to fix them.`
+    });
+  } catch (error) {
+    console.error('Error checking submission visibility:', error);
+    res.status(500).json({ error: 'Failed to check submission visibility' });
   }
 });
 
