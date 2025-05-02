@@ -14,7 +14,9 @@ import {
   Button,
   AppBar,
   Toolbar,
-  Paper
+  Paper,
+  Chip,
+  Grid
 } from '@mui/material';
 import axios from 'axios';
 import NavHeader from './NavHeader';
@@ -23,7 +25,7 @@ const ResponsesPage = () => {
   const [responses, setResponses] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-  const { token, logout } = useAuth();
+  const { token, isAdmin } = useAuth();
   const navigate = useNavigate();
 
   const handleLogout = () => {
@@ -62,10 +64,10 @@ const ResponsesPage = () => {
         <Paper elevation={3} sx={{ p: 4 }}>
           <Box sx={{ mb: 3 }}>
             <Typography variant="h4" component="h1" gutterBottom align="center">
-              All Anonymous Responses
+              All Responses
             </Typography>
             <Typography variant="body1" align="center" sx={{ mb: 4 }}>
-              These responses have been submitted anonymously by users.
+              These responses have been submitted by users. Verified responses are linked to user emails.
             </Typography>
 
             {error && (
@@ -86,6 +88,27 @@ const ResponsesPage = () => {
                   <ListItem alignItems="flex-start" sx={{ px: 0 }}>
                     <Card variant="outlined" sx={{ width: '100%' }}>
                       <CardContent>
+                        <Grid container spacing={1} alignItems="center" sx={{ mb: 1 }}>
+                          {response.verified && (
+                            <Grid item>
+                              <Chip 
+                                label="Verified" 
+                                color="success" 
+                                size="small"
+                              />
+                            </Grid>
+                          )}
+                          {isAdmin && response.verified && response.userEmail && (
+                            <Grid item>
+                              <Chip 
+                                label={`User: ${response.userEmail}`} 
+                                color="primary" 
+                                size="small"
+                              />
+                            </Grid>
+                          )}
+                        </Grid>
+                        
                         <Typography variant="body1">
                           {response.content}
                         </Typography>

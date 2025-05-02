@@ -3,13 +3,9 @@ const mongoose = require('mongoose');
 const formSubmissionSchema = new mongoose.Schema({
   content: {
     type: String,
-    required: true
+    required: true  // Changed to required since we'll store plaintext content
   },
-  publicKey: {
-    type: String,
-    required: true
-  },
-  signature: {
+  encryptedContent: {
     type: String,
     required: true
   },
@@ -35,8 +31,7 @@ const formSubmissionSchema = new mongoose.Schema({
 formSubmissionSchema.pre('save', function(next) {
   console.log('Saving form submission:', {
     hasContent: !!this.content,
-    hasPublicKey: !!this.publicKey,
-    hasSignature: !!this.signature,
+    hasEncryptedContent: !!this.encryptedContent,
     hasUserId: !!this.userId,
     isVerified: this.verified,
     isVisible: this.visible

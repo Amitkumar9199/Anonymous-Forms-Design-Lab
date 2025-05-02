@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const FormSubmission = require('../models/FormSubmission');
 const User = require('../models/User');
-const { generateKeyPair, signData, verify } = require('../services/crypto');
+const { generateKeyPair, encryptWithPublicKey, decryptWithPrivateKey } = require('../services/crypto');
 const { auth, adminAuth } = require('../middleware/auth');
 
 // Middleware to log all requests
@@ -30,42 +30,20 @@ router.post('/submit', auth, async (req, res) => {
       return res.status(400).json({ error: 'You have already submitted a form. Only one submission is allowed.' });
     }
     
-    // Generate a unique key pair that doesn't match any existing keys
-    console.log('Generating unique key pair for submission...');
-    let publicKey, privateKey;
-    let isUnique = false;
-    let attempts = 0;
-    const maxAttempts = 10; // Safety limit on attempts
+    // Generate key pair
+    console.log('Generating key pair for encryption...');
+    const keyPair = generateKeyPair();
+    const publicKey = keyPair.publicKey;
+    const privateKey = keyPair.privateKey;
     
-    while (!isUnique && attempts < maxAttempts) {
-      attempts++;
-      // Generate a new key pair
-      const keyPair = generateKeyPair();
-      publicKey = keyPair.publicKey;
-      privateKey = keyPair.privateKey;
-      
-      // Check if this public key already exists in the database
-      const existingSubmission = await FormSubmission.findOne({ publicKey });
-      isUnique = !existingSubmission;
-      
-      console.log(`Key generation attempt ${attempts}, unique: ${isUnique}`);
-    }
+    // Encrypt the content with the public key
+    console.log('Encrypting content with public key...');
+    const encryptedContent = encryptWithPublicKey(content, publicKey);
     
-    if (!isUnique) {
-      console.error('Failed to generate a unique key pair after multiple attempts');
-      return res.status(500).json({ error: 'Unable to generate a unique cryptographic key' });
-    }
-    
-    // Sign the content with the private key
-    console.log('Signing content with private key...');
-    const signature = signData(content, privateKey);
-    
-    // Create a completely anonymous submission
+    // Create submission with both plaintext and encrypted content
     const submission = new FormSubmission({
-      content,
-      publicKey,
-      signature,
-      // Add a "pending" flag to hide new submissions initially
+      content,          // Store plaintext content
+      encryptedContent, // Also store encrypted content for verification
       visible: false
     });
     
@@ -108,8 +86,8 @@ router.post('/submit', auth, async (req, res) => {
     } else {
       // Schedule the submission to become visible after a random delay
       // This prevents correlation by time of submission
-      const minDelay = 5 * 60 * 1000; // 1 minute minimum
-      const maxAdditionalDelay = 25 * 60 * 1000; // Up to an additional 1 minute (total max: 2 minutes)
+      const minDelay = 1 * 60 * 1000; // 5 minutes minimum
+      const maxAdditionalDelay = 2 * 60 * 1000; // Up to an additional 25 minutes (total max: 30 minutes)
       randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
       
       console.log(`Batch threshold not reached. Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);
@@ -152,7 +130,7 @@ router.post('/submit', auth, async (req, res) => {
     }
     
     // Return the private key to the user
-    // The user must save this key to verify their submission later
+    // The user must save this key to verify their ownership of the submission later
     console.log('Returning private key to user (length):', privateKey.length);
     
     res.status(201).json({
@@ -174,13 +152,27 @@ router.get('/responses', auth, async (req, res) => {
     const submissions = await FormSubmission.find({ visible: true }).sort({ _id: -1 });
     console.log(`Found ${submissions.length} visible submissions`);
     
-    // Log the first submission for debugging
-    if (submissions.length > 0) {
-      console.log('First submission public key length:', submissions[0].publicKey.length);
-      console.log('First submission signature length:', submissions[0].signature.length);
-    }
+    // For verified submissions, get the user email
+    const responsesWithUserInfo = await Promise.all(submissions.map(async (submission) => {
+      // Convert to plain object so we can add properties
+      const submissionObj = submission.toObject();
+      
+      // If the submission is verified and has a user ID, fetch user email
+      if (submission.verified && submission.userId) {
+        try {
+          const user = await User.findById(submission.userId);
+          if (user) {
+            submissionObj.userEmail = user.email;
+          }
+        } catch (error) {
+          console.error(`Error fetching user info for submission ${submission._id}:`, error);
+        }
+      }
+      
+      return submissionObj;
+    }));
     
-    res.json(submissions);
+    res.json(responsesWithUserInfo);
   } catch (error) {
     console.error('Error fetching submissions:', error);
     res.status(500).json({ error: 'Failed to fetch submissions' });
@@ -237,45 +229,44 @@ router.post('/verify', auth, async (req, res) => {
     
     console.log('Found submission:', {
       id: submission._id,
-      content: submission.content.substring(0, 50),
-      hasPublicKey: !!submission.publicKey,
-      hasSignature: !!submission.signature
+      hasContent: !!submission.content,
+      hasEncryptedContent: !!submission.encryptedContent
     });
     
-    // Step 1: Verify the original signature using the public key
-    console.log('Step 1: Verifying original signature...');
-    const isSignatureValid = verify(submission.content, submission.signature, submission.publicKey);
-    console.log('Original signature verification result:', isSignatureValid);
-    
-    // Step 2: Re-sign the content using the provided private key
-    console.log('Step 2: Re-signing content with provided private key...');
-    let isPrivateKeyValid = false;
+    // Try to decrypt the content with the provided private key to verify ownership
     try {
-      const newSignature = signData(submission.content, formattedPrivateKey);
-      // Compare the new signature with the stored signature
-      isPrivateKeyValid = (newSignature === submission.signature);
-      console.log('Signature match result:', isPrivateKeyValid);
-    } catch (error) {
-      console.error('Error re-signing with provided private key:', error);
-      return res.status(400).json({ error: 'Invalid private key format' });
-    }
-    
-    // Only mark as verified if both checks pass
-    if (isSignatureValid && isPrivateKeyValid) {
-      console.log('Verification successful! Updating submission...');
+      console.log('Attempting to decrypt content with provided private key...');
+      const decryptedContent = decryptWithPrivateKey(submission.encryptedContent, formattedPrivateKey);
+      
+      // Verify that the decrypted content matches the stored plaintext content
+      const isContentMatch = (decryptedContent === submission.content);
+      
+      if (!isContentMatch) {
+        console.log('Decryption successful but content does not match!');
+        return res.json({
+          verified: false,
+          message: 'Verification failed - decrypted content does not match original content'
+        });
+      }
+      
+      // If we get here, decryption was successful and content matches
+      console.log('Verification successful! Content matches original submission.');
+      
+      // Update the submission to mark it as verified and associate with user
       submission.verified = true;
+      submission.userId = req.user.id; // Associate with the current user
       await submission.save();
       
       return res.json({ 
         verified: true, 
-        message: 'Response verified - signature and private key confirmed' 
+        message: 'Response verified - you have proven ownership of this submission',
+        content: submission.content
       });
-    } else {
+    } catch (error) {
+      console.error('Decryption failed:', error.message);
       return res.json({
         verified: false,
-        message: isSignatureValid 
-          ? 'Verification failed, the provided private key is wrong' 
-          : 'Original signature could not be verified'
+        message: 'Verification failed - the provided private key could not decrypt this content'
       });
     }
   } catch (error) {
@@ -334,11 +325,12 @@ router.post('/verify-own-response', auth, async (req, res) => {
       try {
         console.log(`Checking submission ${submission._id}...`);
         
-        // Re-sign the content using the provided private key
-        const newSignature = signData(submission.content, formattedPrivateKey);
+        // Try to decrypt the content with the provided private key
+        const decryptedContent = decryptWithPrivateKey(submission.encryptedContent, formattedPrivateKey);
         
-        // Compare the new signature with the stored signature
-        if (newSignature === submission.signature) {
+        // Verify that the decrypted content matches the stored plaintext content
+        if (decryptedContent === submission.content) {
+          // If we get here, decryption was successful and content matches
           console.log('Match found! Submission verified:', submission._id);
           submission.verified = true;
           submission.userId = userId; // Associate this submission with the user
@@ -346,6 +338,8 @@ router.post('/verify-own-response', auth, async (req, res) => {
           await submission.save();
           verifiedSubmission = submission;
           break;
+        } else {
+          console.log(`Content mismatch for submission ${submission._id}`);
         }
       } catch (error) {
         console.log(`Error checking submission ${submission._id}:`, error.message);
@@ -356,7 +350,8 @@ router.post('/verify-own-response', auth, async (req, res) => {
     if (verifiedSubmission) {
       return res.json({ 
         verified: true, 
-        message: 'Your response has been successfully verified and associated with your account!'
+        message: 'Your response has been successfully verified and associated with your account!',
+        content: verifiedSubmission.content
       });
     } else {
       return res.status(400).json({ 

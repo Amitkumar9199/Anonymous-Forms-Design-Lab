@@ -43,11 +43,6 @@ const getRandomModulusLength = () => {
 const generateKeyPair = () => {
   console.log('Generating RSA key pair with enhanced randomness...');
   
-  // old code, let it be here for now
-  // // Generate a random modulus length between 2048 and 4096
-  // const modulusLength = Math.floor(Math.random() * (4096 - 2048 + 1)) + 2048;
-  // console.log('Using random modulus length:', modulusLength);
-  
   // Use enhanced random source to select modulus length
   const modulusLength = getRandomModulusLength();
   console.log('Using time-seeded random modulus length:', modulusLength);
@@ -86,6 +81,78 @@ const generateKeyPair = () => {
   };
 };
 
+/**
+ * Encrypts data using the public key
+ */
+const encryptWithPublicKey = (data, publicKey) => {
+  try {
+    console.log('Encrypting data with public key...');
+    
+    // Convert data to buffer if it's a string
+    const dataBuffer = Buffer.from(data);
+    
+    // Encrypt the data with the public key
+    // Note: RSA can only encrypt data that is smaller than the key size
+    // For larger data, we'd need to use hybrid encryption (AES + RSA)
+    const encrypted = crypto.publicEncrypt(
+      {
+        key: publicKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      },
+      dataBuffer
+    );
+    
+    // Return base64 encoded encrypted data
+    const encryptedBase64 = encrypted.toString('base64');
+    console.log('Encryption successful, result length:', encryptedBase64.length);
+    return encryptedBase64;
+  } catch (error) {
+    console.error('Encryption error:', error);
+    throw error;
+  }
+};
+
+/**
+ * Decrypts data using the private key
+ */
+const decryptWithPrivateKey = (encryptedData, privateKey) => {
+  try {
+    console.log('Decrypting data with private key...');
+    
+    // Validate and fix private key format if needed
+    let formattedPrivateKey = privateKey;
+    
+    // Make sure there are line breaks in the key
+    if (!privateKey.includes('\n')) {
+      console.log('Reformatting private key for decryption...');
+      formattedPrivateKey = privateKey
+        .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+        .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+    }
+    
+    // Convert base64 encrypted data to buffer
+    const encryptedBuffer = Buffer.from(encryptedData, 'base64');
+    
+    // Decrypt the data with the private key
+    const decrypted = crypto.privateDecrypt(
+      {
+        key: formattedPrivateKey,
+        padding: crypto.constants.RSA_PKCS1_OAEP_PADDING
+      },
+      encryptedBuffer
+    );
+    
+    // Return the decrypted data as string
+    const decryptedText = decrypted.toString();
+    console.log('Decryption successful, result length:', decryptedText.length);
+    return decryptedText;
+  } catch (error) {
+    console.error('Decryption error:', error);
+    throw error;
+  }
+};
+
+// Keep the original functions for backward compatibility
 const signData = (data, privateKey) => {
   try {
     console.log('Signing data...');
@@ -155,5 +222,7 @@ const verify = (data, signature, publicKey) => {
 module.exports = {
   generateKeyPair,
   signData,
-  verify
+  verify,
+  encryptWithPublicKey,
+  decryptWithPrivateKey
 }; 
