@@ -10,8 +10,15 @@ import {
   Box,
   Alert,
   Grid,
-  Divider
+  Divider,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  IconButton,
+  Tooltip
 } from '@mui/material';
+import ContentCopyIcon from '@mui/icons-material/ContentCopy';
 
 const Signup = () => {
   const [name, setName] = useState('');
@@ -20,6 +27,9 @@ const Signup = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [openKeyDialog, setOpenKeyDialog] = useState(false);
+  const [keys, setKeys] = useState({ publicKey: '', privateKey: '' });
+  const [copySuccess, setCopySuccess] = useState({ publicKey: false, privateKey: false });
   const { signup } = useAuth();
   const navigate = useNavigate();
 
@@ -65,16 +75,48 @@ const Signup = () => {
     setLoading(true);
     
     try {
-      await signup(name, email, password);
+      const response = await signup(name, email, password);
       
-      // Redirect to submission page after successful signup
-      navigate('/submit');
+      // Check if we received public and private keys
+      if (response.publicKey && response.privateKey) {
+        setKeys({
+          publicKey: response.publicKey,
+          privateKey: response.privateKey
+        });
+        
+        // Open the key dialog
+        setOpenKeyDialog(true);
+      } else {
+        // If no keys, just navigate to submission page
+        navigate('/submit');
+      }
     } catch (err) {
       console.error('Signup error:', err);
       setError(err.response?.data?.message || 'Failed to create account. Please try again.');
-    } finally {
       setLoading(false);
     }
+  };
+
+  const handleCopyToClipboard = (keyType) => {
+    navigator.clipboard.writeText(keys[keyType])
+      .then(() => {
+        // Set copy success for this key type
+        setCopySuccess(prev => ({ ...prev, [keyType]: true }));
+        
+        // Reset the success message after 2 seconds
+        setTimeout(() => {
+          setCopySuccess(prev => ({ ...prev, [keyType]: false }));
+        }, 2000);
+      })
+      .catch(err => {
+        console.error('Failed to copy text: ', err);
+      });
+  };
+
+  const handleCloseKeyDialog = () => {
+    setOpenKeyDialog(false);
+    setLoading(false);
+    navigate('/submit');
   };
 
   return (
@@ -158,6 +200,86 @@ const Signup = () => {
           </form>
         </Paper>
       </Box>
+      
+      {/* Key Pair Dialog */}
+      <Dialog 
+        open={openKeyDialog} 
+        onClose={handleCloseKeyDialog}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Your Encryption Keys
+        </DialogTitle>
+        <DialogContent>
+          <Alert severity="warning" sx={{ mb: 2 }}>
+            Important: Save your private key securely now. This is the only time it will be shown to you.
+          </Alert>
+          
+          <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
+            Public Key
+          </Typography>
+          <Box 
+            sx={{ 
+              p: 2, 
+              backgroundColor: '#f5f5f5', 
+              borderRadius: 1,
+              maxHeight: '150px',
+              overflow: 'auto',
+              position: 'relative',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
+            }}
+          >
+            {keys.publicKey}
+            <Tooltip title={copySuccess.publicKey ? "Copied!" : "Copy to clipboard"}>
+              <IconButton
+                onClick={() => handleCopyToClipboard('publicKey')}
+                sx={{ position: 'absolute', top: 2, right: 2 }}
+                color={copySuccess.publicKey ? "success" : "default"}
+              >
+                <ContentCopyIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+          
+          <Typography variant="h6" gutterBottom sx={{ mt: 3 }}>
+            Private Key
+          </Typography>
+          <Box 
+            sx={{ 
+              p: 2, 
+              backgroundColor: '#f5f5f5', 
+              borderRadius: 1,
+              maxHeight: '200px',
+              overflow: 'auto',
+              position: 'relative',
+              fontFamily: 'monospace',
+              fontSize: '12px',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-all'
+            }}
+          >
+            {keys.privateKey}
+            <Tooltip title={copySuccess.privateKey ? "Copied!" : "Copy to clipboard"}>
+              <IconButton
+                onClick={() => handleCopyToClipboard('privateKey')}
+                sx={{ position: 'absolute', top: 2, right: 2 }}
+                color={copySuccess.privateKey ? "success" : "default"}
+              >
+                <ContentCopyIcon />
+              </IconButton>
+            </Tooltip>
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseKeyDialog} variant="contained" color="primary">
+            I've Saved My Keys
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 };

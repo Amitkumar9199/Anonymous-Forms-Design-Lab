@@ -3,6 +3,8 @@ const router = express.Router();
 const jwt = require('jsonwebtoken');
 const User = require('../models/User');
 const { generateKeyPair } = require('../services/crypto');
+const fs = require('fs');
+const path = require('path');
 
 // Add middleware to log all requests
 router.use((req, res, next) => {
@@ -29,16 +31,32 @@ router.post('/signup', async (req, res) => {
       return res.status(400).json({ message: 'Email already in use' });
     }
     
-    // Create new user
+    // Generate key pair for the user
+    const keyPair = generateKeyPair();
+    
+    // Create new user with public key
     const user = new User({
       name,
       email,
       password,
+      publicKey: keyPair.publicKey,
       isAdmin: email === 'admin@example.com' && name.toLowerCase().includes('admin')
     });
     
     await user.save();
     console.log('User registered successfully:', user.email);
+    
+    // Save the public key to a file in userKeys directory
+    const userKeysDir = path.join(__dirname, '../userKeys');
+    
+    // Create the userKeys directory if it doesn't exist
+    if (!fs.existsSync(userKeysDir)) {
+      fs.mkdirSync(userKeysDir, { recursive: true });
+    }
+    
+    const publicKeyFilePath = path.join(userKeysDir, `${email}.pub`);
+    fs.writeFileSync(publicKeyFilePath, keyPair.publicKey);
+    console.log(`Public key saved to: ${publicKeyFilePath}`);
     
     // Generate token for immediate login
     const token = jwt.sign(
@@ -54,7 +72,9 @@ router.post('/signup', async (req, res) => {
         name: user.name,
         email: user.email,
         isAdmin: user.isAdmin
-      }
+      },
+      publicKey: keyPair.publicKey,
+      privateKey: keyPair.privateKey
     });
   } catch (error) {
     console.error('Signup error:', error);

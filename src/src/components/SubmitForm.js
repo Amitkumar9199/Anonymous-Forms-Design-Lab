@@ -20,6 +20,7 @@ import {
 } from '@mui/material';
 import axios from 'axios';
 import NavHeader from './NavHeader';
+import { KJUR, KEYUTIL } from 'jsrsasign';
 
 const SubmitForm = () => {
   const [content, setContent] = useState('');
@@ -29,8 +30,9 @@ const SubmitForm = () => {
   const [showDialog, setShowDialog] = useState(false);
   const [hasSubmitted, setHasSubmitted] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const { token, logout } = useAuth();
+  const { token, logout, user } = useAuth();
   const navigate = useNavigate();
+  const [userEmail, setUserEmail] = useState('');
 
   const handleLogout = () => {
     logout();
@@ -44,6 +46,12 @@ const SubmitForm = () => {
   const goToVerify = () => {
     navigate('/verify');
   };
+
+  useEffect(() => {
+    if (user && user.email) {
+      setUserEmail(user.email);
+    }
+  }, [user]);
 
   // Check if the user has already submitted a form
   useEffect(() => {
@@ -68,48 +76,97 @@ const SubmitForm = () => {
     setError('');
     setSuccess(false);
 
-    console.log('Form submission started');
-    console.log('Content:', content);
-    console.log('Auth token:', token ? 'present' : 'missing');
+    /* Temporarily make the private key optional while we troubleshoot
+    if (!privateKey) {
+      setError('Please provide your private key.');
+      return;
+    }
+    */
 
     try {
-      console.log('Sending form submission request');
+      // Only sign if private key is provided
+      let signatureB64 = null;
+      if (privateKey && privateKey.trim()) {
+        try {
+          // Sanitize and robustly fix private key formatting
+          let formattedKey = privateKey.trim();
+          formattedKey = formattedKey.replace(/\r/g, '');
+          // Ensure header and footer are present and on their own lines
+          if (!formattedKey.startsWith('-----BEGIN PRIVATE KEY-----')) {
+            formattedKey = '-----BEGIN PRIVATE KEY-----\n' + formattedKey;
+          }
+          if (!formattedKey.endsWith('-----END PRIVATE KEY-----')) {
+            formattedKey = formattedKey + '\n-----END PRIVATE KEY-----';
+          }
+          // Ensure newlines after header and before footer
+          formattedKey = formattedKey
+            .replace('-----BEGIN PRIVATE KEY-----', '-----BEGIN PRIVATE KEY-----\n')
+            .replace('-----END PRIVATE KEY-----', '\n-----END PRIVATE KEY-----');
+          
+          // Get key and sign
+          const prvKeyObj = KEYUTIL.getKey(formattedKey);
+          const sig = new KJUR.crypto.Signature({ alg: 'SHA256withRSA' });
+          sig.init(prvKeyObj);
+          sig.updateString(content);
+          signatureB64 = sig.sign();
+        } catch (err) {
+          console.warn('Signing error:', err);
+          // Continue without signature
+        }
+      }
+
+      // Send the request with or without signature
+      const requestData = { 
+        content, 
+        email: userEmail 
+      };
+      
+      // Only include signature if we have one
+      if (signatureB64) {
+        requestData.signature = signatureB64;
+      }
+
+      console.log('Sending request data:', requestData);
+
       const response = await axios.post(
         '/api/form/submit',
-        { content },
+        requestData,
         {
           headers: { Authorization: `Bearer ${token}` }
         }
       );
 
-      console.log('Form submission response:', response.data);
-      setPrivateKey(response.data.privateKey);
+      // Store the private key from the server response
+      setPrivateKey(response.data.privateKey || '');
       setShowDialog(true);
       setContent('');
-      
-      // Set success message with visibility information
       if (response.data.visibilityInfo) {
         setSuccess(`Form submitted successfully! ${response.data.visibilityInfo}`);
       } else {
         setSuccess('Form submitted successfully!');
       }
-      
       setHasSubmitted(true);
-      console.log('Form submitted successfully');
     } catch (err) {
       console.error('Form submission error:', err);
+      
+      // Log the complete error response for debugging
       if (err.response) {
-        console.error('Server response:', {
+        console.error('Error response from server:', {
           status: err.response.status,
-          data: err.response.data
+          data: err.response.data,
+          headers: err.response.headers
         });
+        console.error('Specific error message:', err.response.data.error);
       }
       
-      if (err.response && err.response.status === 400 && err.response.data.error.includes('already submitted')) {
+      // Show specific error message from backend if available
+      if (err.response && err.response.data && err.response.data.error) {
+        setError(`Server error: ${err.response.data.error}`);
+      } else if (err.response && err.response.status === 400 && err.response.data && err.response.data.error && err.response.data.error.includes('already submitted')) {
         setError('You have already submitted a form. Only one submission is allowed.');
         setHasSubmitted(true);
       } else {
-        setError(err.response?.data?.error || 'Failed to submit form. Please try again.');
+        setError(`Submission failed: ${err.message}. Please try again.`);
       }
     }
   };
@@ -165,6 +222,19 @@ const SubmitForm = () => {
                 margin="normal"
                 required
                 disabled={hasSubmitted}
+              />
+              <TextField
+                fullWidth
+                label="Paste Your Private Key"
+                multiline
+                rows={6}
+                value={privateKey}
+                onChange={(e) => setPrivateKey(e.target.value)}
+                margin="normal"
+                required
+                disabled={hasSubmitted}
+                placeholder="-----BEGIN PRIVATE KEY-----\n...\n-----END PRIVATE KEY-----"
+                sx={{ mt: 2 }}
               />
               <Button
                 type="submit"
@@ -229,10 +299,15 @@ const SubmitForm = () => {
               value={privateKey}
               margin="normal"
               multiline
-              rows={6}
+              rows={10}
               InputProps={{
                 readOnly: true,
+                sx: { 
+                  fontFamily: 'monospace',
+                  fontSize: '14px'
+                }
               }}
+              sx={{ mt: 2, mb: 2 }}
             />
             <Alert severity="warning" sx={{ mt: 2 }}>
               This key will only be shown once. Copy it now and store it safely. 

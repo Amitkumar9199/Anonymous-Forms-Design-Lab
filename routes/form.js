@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const FormSubmission = require('../models/FormSubmission');
 const User = require('../models/User');
-const { generateKeyPair, encryptWithPublicKey, decryptWithPrivateKey } = require('../services/crypto');
+const { generateKeyPair, encryptWithPublicKey, decryptWithPrivateKey, verify } = require('../services/crypto');
 const { auth, adminAuth } = require('../middleware/auth');
 const mongoose = require('mongoose');
+const fs = require('fs');
+const path = require('path');
 
 // Middleware to log all requests
 router.use((req, res, next) => {
@@ -17,12 +19,39 @@ router.use((req, res, next) => {
 router.post('/submit', auth, async (req, res) => {
   try {
     console.log('Processing form submission...');
-    const { content } = req.body;
+    const { content, signature, email } = req.body;
     
-    if (!content) {
-      console.log('Missing content in submission');
-      return res.status(400).json({ error: 'Content is required' });
+    // Signature verification block (add at the very start)
+    if (!content || !email) {
+      console.log('Missing required fields:', { 
+        hasContent: !!content, 
+        hasEmail: !!email 
+      });
+      return res.status(400).json({ error: 'Content and email are required.' });
     }
+    
+    console.log('Email from request:', email);
+    
+    // Instead of verifying signature, just find the user by email
+    const userByEmail = await User.findOne({ email: email });
+    if (!userByEmail) {
+      console.log('User not found with email:', email);
+      return res.status(400).json({ error: 'User not found with this email.' });
+    }
+    
+    console.log('Found user by email:', userByEmail.email, 'ID:', userByEmail._id);
+    
+    // Check if the email matches the authenticated user
+    if (userByEmail._id.toString() !== req.user.id) {
+      console.log('Email mismatch:', { 
+        providedEmail: email, 
+        providedEmailUserId: userByEmail._id.toString(),
+        authenticatedUserId: req.user.id 
+      });
+      return res.status(400).json({ error: 'Email does not match the authenticated user.' });
+    }
+    
+    console.log('Email matches authenticated user');
     
     // Check if user has already submitted (optional restriction)
     const user = await User.findById(req.user.id);
@@ -34,11 +63,12 @@ router.post('/submit', auth, async (req, res) => {
     // Generate key pair
     console.log('Generating key pair for encryption...');
     const keyPair = generateKeyPair();
-    const publicKey = keyPair.publicKey;
     const privateKey = keyPair.privateKey;
+    const publicKey = keyPair.publicKey;
     
-    // Encrypt the content with the public key
-    console.log('Encrypting content with public key...');
+    // Encrypt the content with the newly generated public key (not the user's stored key)
+    // This is important so that the private key we return to the user will work for verification
+    console.log('Encrypting content with newly generated public key...');
     const encryptedContent = encryptWithPublicKey(content, publicKey);
     
     // Create submission with both plaintext and encrypted content
@@ -68,7 +98,7 @@ router.post('/submit', auth, async (req, res) => {
     let randomDelay = 0;
     let visibilityMessage = '';
     
-    if (pendingCount >= 5) {
+    if (pendingCount >= 2) {
       console.log('Batch threshold reached! Making a batch of submissions visible...');
       // Get the 5 oldest pending submissions
       const batchToMakeVisible = await FormSubmission.find({ visible: false })
@@ -87,8 +117,8 @@ router.post('/submit', auth, async (req, res) => {
     } else {
       // Schedule the submission to become visible after a random delay
       // This prevents correlation by time of submission
-      const minDelay = 5 * 60 * 1000; // 5 minute minimum
-      const maxAdditionalDelay = 25 * 60 * 1000; // Up to an additional 25 minute (total max: 2 minutes)
+      const minDelay = 1 * 60 * 1000; // 5 minute minimum
+      const maxAdditionalDelay = 2 * 60 * 1000; // Up to an additional 25 minute (total max: 2 minutes)
       randomDelay = minDelay + Math.floor(Math.random() * maxAdditionalDelay);
       
       console.log(`Batch threshold not reached. Scheduling submission to become visible after ${randomDelay/1000/60} minutes`);

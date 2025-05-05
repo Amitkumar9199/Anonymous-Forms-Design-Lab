@@ -138,7 +138,7 @@ export const AuthProvider = ({ children }) => {
       const response = await axios.post('/api/auth/signup', { name, email, password });
       console.log('Signup response:', response.data);
       
-      const { token, user } = response.data;
+      const { token, user, publicKey, privateKey } = response.data;
       
       if (token) {
         console.log('Signup successful, storing token');
